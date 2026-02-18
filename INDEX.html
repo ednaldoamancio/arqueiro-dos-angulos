@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>O Arqueiro dos Ângulos</title>
+    <style>
+        :root { --medieval-gold: #c5a059; --medieval-wood: #3b2616; }
+        
+        body { 
+            margin: 0; 
+            font-family: 'Segoe UI', Tahoma, serif; 
+            background: #1a1a1a; 
+            display: flex; 
+            justify-content: center; 
+            align-items: flex-start;
+            min-height: 100vh;
+            padding-top: 10px;
+        }
+
+        #game-wrapper {
+            width: 100%;
+            max-width: 800px;
+            height: 600px;
+            position: relative;
+            background: linear-gradient(to bottom, #87CEEB 0%, #87CEEB 55%, #89c64f 55%, #89c64f 100%);
+            overflow: hidden;
+            border: 5px solid var(--medieval-wood);
+            box-shadow: 0 0 30px rgba(0,0,0,0.7);
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* --- INTERFACE SUPERIOR --- */
+        #game-header {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 500px;
+            background: rgba(59, 38, 22, 0.95);
+            border: 3px solid var(--medieval-gold);
+            border-radius: 15px;
+            padding: 8px 15px;
+            color: var(--medieval-gold);
+            z-index: 50;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+        }
+
+        #stats-row { display: flex; justify-content: space-between; width: 100%; font-weight: bold; font-size: 14px; margin-bottom: 5px; }
+        #question-area { text-align: center; width: 100%; }
+        #question-text { color: white; margin: 3px 0; font-size: 15px; }
+        #input-row { display: flex; gap: 8px; justify-content: center; align-items: center; margin-top: 5px; }
+        #answer-input { padding: 5px; font-size: 16px; width: 80px; text-align: center; border: 2px solid var(--medieval-gold); border-radius: 5px; }
+        #feedback { font-weight: bold; margin-top: 3px; height: 18px; font-size: 13px; }
+
+        /* --- ÁREA DO CANVAS --- */
+        #canvas-container {
+            position: absolute;
+            top: 140px; 
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+        }
+        canvas { background: rgba(255,255,255,0.95); border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+
+        /* --- PERSONAGENS E CENÁRIO --- */
+        #archer {
+            position: absolute; 
+            bottom: 0px; 
+            left: 10px;
+            height: 270px; 
+            width: auto;
+            z-index: 30;
+        }
+        
+        #target { position: absolute; bottom: 210px; right: 20px; font-size: 60px; z-index: 20; }
+        #tree { position: absolute; bottom: 210px; right: 140px; font-size: 80px; z-index: 15; opacity: 0.9; }
+
+        #arrow-template { position: absolute; bottom: 160px; left: 160px; height: 10px; width: auto; z-index: 29; display: none; }
+        .fired-arrow { position: absolute; bottom: 160px; left: 160px; height: 10px; width: auto; z-index: 29; }
+
+        /* --- MENU --- */
+        #menu, #modal-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(20, 10, 5, 0.95);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 100; color: white; text-align: center;
+        }
+        h1 { color: var(--medieval-gold); text-shadow: 2px 2px black; font-size: 32px; margin-bottom: 20px; }
+        .btn {
+            background: #8a1c1c; color: white; border: 2px solid var(--medieval-gold);
+            padding: 12px 24px; font-size: 16px; margin: 8px; cursor: pointer;
+            border-radius: 5px; font-weight: bold; transition: 0.3s; width: 250px;
+        }
+        .btn:hover { background: #a32222; transform: scale(1.05); }
+        .fire-btn { padding: 5px 15px; width: auto; font-size: 14px; margin: 0; background: var(--medieval-gold); color: black; }
+
+        /* --- MEDIA QUERY: MOBILE --- */
+        @media (max-width: 600px) {
+            #game-wrapper { height: 100vh; border: none; }
+            #archer { height: 140px; left: 0px; } 
+            .fired-arrow, #arrow-template { bottom: 85px; left: 80px; height: 8px; } 
+            #target { bottom: 130px; right: 10px; font-size: 80px; }
+            #tree { bottom: 130px; right: 80px; font-size: 60px; }
+            #canvas-container { top: 130px; transform: translateX(-50%) scale(0.85); }
+            
+            @keyframes shootBullseyeMobile {
+                0% { left: 80px; bottom: 85px; transform: rotate(0deg); }
+                100% { left: 88%; bottom: 150px; transform: rotate(5deg); }
+            }
+            @keyframes shootTreeMobile {
+                0% { left: 80px; bottom: 85px; transform: rotate(0deg); }
+                100% { left: 70%; bottom: 160px; transform: rotate(15deg); }
+            }
+        }
+
+        /* Animações PC */
+        @keyframes shootBullseye {
+            0% { left: 160px; bottom: 160px; transform: rotate(0deg); }
+            100% { left: 720px; bottom: 240px; transform: rotate(5deg); } 
+        }
+        @keyframes shootTree {
+            0% { left: 160px; bottom: 160px; transform: rotate(0deg); }
+            100% { left: 550px; bottom: 250px; transform: rotate(15deg); }
+        }
+
+    </style>
+</head>
+<body>
+
+<div id="game-wrapper">
+    <div id="menu">
+        <h1>🏹 O Arqueiro dos Ângulos</h1>
+        <p>Complete 50 acertos para vencer!</p>
+        <button class="btn" onclick="startLevel(1)">Nível 1: O Cálculo (x)</button>
+        <button class="btn" onclick="startLevel(2)">Nível 2: O Escriba (Nomes)</button>
+        <button class="btn" onclick="startLevel(3)">Nível 3: O Mestre (OPV)</button>
+        <button class="btn" onclick="startLevel(4)">Nível 4: A Lenda (Paralelas)</button>
+    </div>
+
+    <div id="canvas-container">
+        <canvas id="geometryCanvas" width="350" height="200"></canvas>
+    </div>
+
+    <img id="archer" src="arqueiro-chroma.png" alt="Arqueiro">
+    <div id="target">🎯</div>
+    <div id="tree">🌳</div>
+    <img id="arrow-template" src="https://i.postimg.cc/fygRfnfV/flecha.png" alt="Flecha">
+
+    <div id="game-header" style="display:none;">
+        <div id="stats-row">
+            <div id="level-display">NÍVEL 1</div>
+            <div id="progress">0/50</div>
+            <div id="hearts">❤️❤️❤️❤️</div>
+        </div>
+        <div id="question-area">
+            <div id="question-text">Pergunta aqui...</div>
+            <div id="input-row">
+                <input type="text" id="answer-input" autocomplete="off">
+                <button class="btn fire-btn" onclick="checkAnswer()">Disparar!</button>
+            </div>
+            <div id="feedback"></div>
+        </div>
+    </div>
+
+    <div id="modal-overlay" style="display:none;">
+        <h2 id="modal-title">Fim de Jogo</h2>
+        <p id="modal-msg">Mensagem</p>
+        <p id="modal-score" style="font-size: 20px; color: var(--medieval-gold); margin: 20px 0;"></p>
+        <button class="btn" onclick="backToMenu()">Voltar ao Castelo</button>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('geometryCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    let currentLevel = 1;
+    let lives = 4;
+    let correctAnswers = 0;
+    let totalAttempts = 0;
+    let currentQuestion = {};
+    let isAnimating = false;
+    const GOAL = 50; 
+
+    // Caminhos das imagens locais
+    const IMG_ESTATICA = "arqueiro-chroma.png";
+    const IMG_ANIMADA = "arqueiro-mirim.gif";
+
+    const bgMusic = new Audio('https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=forest-lullaby-110624.mp3');
+    bgMusic.loop = true;
+    bgMusic.volume = 0.4;
+
+    const arrowSfxUrl = 'https://cdn.pixabay.com/download/audio/2022/11/18/audio_a4e3e38752.mp3?filename=arrow-whoosh.mp3';
+
+    function initAudio() {
+        bgMusic.play().catch(e => console.log("Navegador aguardando interação"));
+    }
+
+    function playArrowSound() {
+        const sfx = new Audio(arrowSfxUrl);
+        sfx.volume = 0.6;
+        sfx.play();
+    }
+
+    function startLevel(level) {
+        initAudio();
+        currentLevel = level;
+        lives = 4;
+        correctAnswers = 0;
+        totalAttempts = 0;
+        updateUI();
+        
+        document.getElementById('menu').style.display = 'none';
+        document.getElementById('modal-overlay').style.display = 'none';
+        document.getElementById('game-header').style.display = 'flex';
+        // Reset para imagem estática local
+        document.getElementById('archer').src = IMG_ESTATICA;
+        
+        generateQuestion();
+    }
+
+    function updateUI() {
+        let h = ""; for(let i=0; i<lives; i++) h += "❤️";
+        document.getElementById('hearts').innerText = h;
+        document.getElementById('level-display').innerText = `NÍVEL ${currentLevel}`;
+        document.getElementById('progress').innerText = `Progresso: ${correctAnswers}/${GOAL}`;
+    }
+
+    function generateQuestion() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        document.getElementById('answer-input').value = '';
+        document.getElementById('feedback').innerText = '';
+        document.getElementById('answer-input').focus();
+        
+        if (currentLevel === 1) {
+            const types = ['complementar', 'suplementar', 'repleto'];
+            const type = types[Math.floor(Math.random() * types.length)];
+            let totalAngle, angle1;
+            if (type === 'complementar') { totalAngle = 90; angle1 = Math.floor(Math.random() * 70) + 10; drawAngleVisual(90, angle1, "Reto (90°)"); }
+            else if (type === 'suplementar') { totalAngle = 180; angle1 = Math.floor(Math.random() * 140) + 20; drawAngleVisual(180, angle1, "Raso (180°)"); }
+            else { totalAngle = 360; angle1 = Math.floor(Math.random() * 200) + 50; drawAngleVisual(360, angle1, "Completo (360°)"); }
+            currentQuestion = { answer: (totalAngle - angle1).toString(), text: `Ângulo total: ${totalAngle}°. Valor de x?` };
+        }
+        else if (currentLevel === 2) {
+            const types = [{name: 'agudo', min: 10, max: 80}, {name: 'reto', min: 90, max: 90}, {name: 'obtuso', min: 100, max: 170}, {name: 'raso', min: 180, max: 180}];
+            const q = types[Math.floor(Math.random() * types.length)];
+            let val = Math.floor(Math.random() * (q.max - q.min + 1)) + q.min;
+            drawAngleVisual(val, null, `${val}°`);
+            currentQuestion = { answer: q.name, text: `Nome do ângulo (${val}°)? (Agudo, Reto, Obtuso, Raso)` };
+        }
+        else if (currentLevel === 3) {
+            let val = Math.floor(Math.random() * 140) + 20; 
+            if (val > 80 && val < 100) val = 60; 
+            let type = Math.random() > 0.5 ? 'easy' : 'hard'; 
+            drawOPVCorrect(val, type);
+            if (type === 'easy') currentQuestion = { answer: val.toString(), text: "Opostos pelo vértice são iguais. Valor de x?" };
+            else {
+                let missing = 180 - val;
+                currentQuestion = { answer: missing.toString(), text: "Estes ângulos são suplementares. Valor de x?" };
+            }
+        }
+        else if (currentLevel === 4) {
+            let val = Math.floor(Math.random() * 120) + 30; 
+            if (val > 85 && val < 95) val = 110; 
+            let isHard = correctAnswers >= 10; 
+            let logic = (Math.random() > 0.5) ? 'equal' : 'supplementary';
+            if (!isHard && Math.random() > 0.3) logic = 'equal';
+            let missing = 180 - val;
+            let answer = logic === 'equal' ? val : missing;
+            drawParallelAccurate(val, logic);
+            if (logic === 'equal') currentQuestion = { answer: answer.toString(), text: "Paralelas: Correspondentes/Alternos são iguais. Valor de x?" };
+            else currentQuestion = { answer: answer.toString(), text: "Colaterais: A soma é 180°. Valor de x?" };
+        }
+        document.getElementById('question-text').innerText = currentQuestion.text;
+    }
+
+    function drawAngleVisual(total, split, label) {
+        const cx = 175, cy = 150, r = 80;
+        ctx.lineWidth = 3; ctx.font = "14px Arial";
+        ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + r, cy); ctx.stroke();
+        let radTotal = -total * (Math.PI / 180);
+        ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + r * Math.cos(radTotal), cy + r * Math.sin(radTotal)); ctx.stroke();
+        if(total === 90) ctx.strokeRect(cx + 5, cy - 15, 10, 10);
+        else { ctx.beginPath(); ctx.arc(cx, cy, 25, 0, radTotal, true); ctx.strokeStyle = '#8a1c1c'; ctx.stroke(); ctx.strokeStyle = '#000'; }
+        if (split !== null) {
+            let radSplit = -split * (Math.PI / 180);
+            ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + r * Math.cos(radSplit), cy + r * Math.sin(radSplit));
+            ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]);
+            ctx.fillStyle = "black"; ctx.fillText(`${split}°`, cx + 35, cy - 5);
+            ctx.fillStyle = "red"; ctx.font = "bold 18px Arial"; ctx.fillText("x", cx + 5, cy - 40);
+        } else ctx.fillText(label, cx - 15, cy - 90);
+    }
+
+    function drawOPVCorrect(angleDeg, type) {
+        const cx = 175, cy = 100;
+        const len = 80;
+        const angleRad = (angleDeg * Math.PI) / 180;
+        const halfAngle = angleRad / 2;
+        
+        ctx.beginPath(); ctx.lineWidth = 2;
+        ctx.moveTo(cx - len * Math.cos(halfAngle), cy - len * Math.sin(halfAngle));
+        ctx.lineTo(cx + len * Math.cos(halfAngle), cy + len * Math.sin(halfAngle));
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(cx - len * Math.cos(halfAngle), cy + len * Math.sin(halfAngle));
+        ctx.lineTo(cx + len * Math.cos(halfAngle), cy - len * Math.sin(halfAngle));
+        ctx.stroke();
+
+        ctx.font = "14px Arial"; ctx.fillStyle = "black";
+        ctx.fillText(`${angleDeg}°`, cx + 20, cy + 5);
+        ctx.fillStyle = "red"; ctx.font = "bold 18px Arial";
+        if (type === 'easy') ctx.fillText("x", cx - 40, cy + 5);
+        else ctx.fillText("x", cx - 5, cy - 30);
+    }
+
+    function drawParallelAccurate(angleDeg, logic) {
+        const cx = 175; const y1 = 60, y2 = 140; const width = 140;
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(cx - width, y1); ctx.lineTo(cx + width, y1); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(cx - width, y2); ctx.lineTo(cx + width, y2); ctx.stroke();
+        
+        const angleRad = (angleDeg * Math.PI) / 180;
+        const h = y2 - y1;
+        const dx = h / Math.tan(angleRad);
+        const midY = (y1 + y2) / 2;
+        const topX = cx + (dx / 2);
+        const botX = cx - (dx / 2);
+        
+        const extensionFactor = 1.5;
+        const realTopX = cx + (dx / 2) * extensionFactor;
+        const realTopY = midY - (h / 2) * extensionFactor;
+        const realBotX = cx - (dx / 2) * extensionFactor;
+        const realBotY = midY + (h / 2) * extensionFactor;
+
+        ctx.beginPath(); ctx.moveTo(realTopX, realTopY); ctx.lineTo(realBotX, realBotY);
+        ctx.strokeStyle = "black"; ctx.stroke();
+
+        ctx.font = "14px Arial"; ctx.fillStyle = "black";
+        let valX, valY = y1 + 20;
+        let isAcute = angleDeg < 90;
+        if (isAcute) valX = topX - 30; else valX = topX + 10;
+        ctx.fillText(`${angleDeg}°`, valX, valY);
+
+        ctx.fillStyle = "red"; ctx.font = "bold 18px Arial";
+        let xPosX, xPosY;
+        if (logic === 'equal') {
+            xPosY = y2 - 10;
+            if (isAcute) xPosX = botX + 10; else xPosX = botX - 30;
+        } else {
+            xPosY = y2 - 10;
+            if (isAcute) xPosX = botX - 30; else xPosX = botX + 10;
+        }
+        ctx.fillText("x", xPosX, xPosY);
+    }
+
+    function checkAnswer() {
+        if(isAnimating) return;
+        let userAns = document.getElementById('answer-input').value.trim().toLowerCase();
+        let correct = currentQuestion.answer.toString().toLowerCase();
+        isAnimating = true; totalAttempts++;
+
+        if (userAns === correct) {
+            correctAnswers++;
+            document.getElementById('feedback').innerText = "OK! Na mosca!";
+            document.getElementById('feedback').style.color = "lime";
+            fireArrow(true);
+        } else {
+            lives--; 
+            document.getElementById('feedback').innerText = "Que pena!";
+            document.getElementById('feedback').style.color = "#ff4444";
+            fireArrow(false);
+        }
+        updateUI();
+    }
+
+    function fireArrow(hitTarget) {
+        const archerImg = document.getElementById('archer');
+        
+        // 1. Inicia o GIF Local
+        archerImg.src = IMG_ANIMADA;
+        setTimeout(() => { archerImg.src = IMG_ESTATICA; }, 2000);
+
+        // 2. Dispara flechas
+        for (let i = 0; i < 4; i++) {
+            setTimeout(() => { 
+                spawnProjectile(hitTarget); 
+                playArrowSound();
+            }, i * 500); 
+        }
+
+        setTimeout(() => {
+            isAnimating = false;
+            if (hitTarget) {
+                if (correctAnswers >= GOAL) endGame(true); 
+                else generateQuestion();
+            } else {
+                if (lives <= 0) endGame(false); 
+                else { 
+                    document.getElementById('answer-input').value = ''; 
+                    document.getElementById('answer-input').focus(); 
+                }
+            }
+        }, 2200);
+    }
+
+    function spawnProjectile(hitTarget) {
+        const wrapper = document.getElementById('game-wrapper');
+        const template = document.getElementById('arrow-template');
+        const newArrow = template.cloneNode(true);
+        newArrow.id = ""; 
+        newArrow.classList.add('fired-arrow'); 
+        
+        const isMobile = window.innerWidth <= 600;
+        let animName = "";
+        
+        if (hitTarget) animName = isMobile ? "shootBullseyeMobile" : "shootBullseye";
+        else animName = isMobile ? "shootTreeMobile" : "shootTree";
+
+        newArrow.style.animation = `${animName} 0.4s forwards linear`;
+        wrapper.appendChild(newArrow);
+        setTimeout(() => { newArrow.remove(); }, 450);
+    }
+
+    document.getElementById('answer-input').addEventListener('keyup', (e) => { if(e.key === 'Enter') checkAnswer(); });
+
+    function endGame(victory) {
+        document.getElementById('modal-overlay').style.display = 'flex';
+        let percent = Math.round((correctAnswers / totalAttempts) * 100); if(isNaN(percent)) percent = 0;
+        
+        if (victory) {
+            document.getElementById('modal-title').innerText = "Nível Concluído!";
+            document.getElementById('modal-msg').innerText = "Excelente! Você dominou este desafio.";
+            document.getElementById('modal-score').style.color = "lime";
+        } else {
+            document.getElementById('modal-title').innerText = "Fim de Jogo";
+            document.getElementById('modal-msg').innerText = "Suas flechas acabaram. Tente novamente!";
+            document.getElementById('modal-score').style.color = "red";
+        }
+        document.getElementById('modal-score').innerText = `Precisão: ${percent}%`;
+    }
+
+    function backToMenu() {
+        document.getElementById('modal-overlay').style.display = 'none';
+        document.getElementById('game-header').style.display = 'none';
+        document.getElementById('menu').style.display = 'flex';
+        document.getElementById('archer').src = IMG_ESTATICA;
+    }
+
+    // Inicialização
+    document.getElementById('archer').src = IMG_ESTATICA;
+</script>
+
+</body>
+</html>
